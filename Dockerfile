@@ -1,17 +1,10 @@
 FROM node:20-slim
 
-# Install Python 3 + pip for Kronos AI predictions
+# Python is only needed for optional Hermes/Telegram TTS via edge-tts.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip python3-venv wget \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install CPU-only PyTorch first (saves ~1.5GB vs full CUDA build)
-RUN pip3 install --no-cache-dir --break-system-packages \
-    torch --index-url https://download.pytorch.org/whl/cpu
-
-# Install remaining Kronos dependencies + Hermes TTS
-RUN pip3 install --no-cache-dir --break-system-packages \
-    numpy pandas tqdm einops huggingface_hub safetensors edge-tts
+    python3 python3-pip wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip3 install --no-cache-dir --break-system-packages edge-tts
 
 WORKDIR /app
 
