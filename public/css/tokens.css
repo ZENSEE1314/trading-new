@@ -1,0 +1,139 @@
+/* ============================================================
+   Design Tokens — CryptoBot Dashboard
+   Principle: Premium Gold Luxury Terminal
+   Aesthetic: Glassmorphism + warm gold accents on deep dark layers.
+   ============================================================ */
+
+:root {
+  /* --- Colors: Core (warm dark base) --- */
+  --color-bg:          #08070c;
+  --color-bg-base:     #08070c;
+  --color-bg-raised:   #110f18;
+  --color-bg-inset:    #0a0910;
+  --color-surface:     #14121e;
+  --color-surface-alt: #1a1726;
+  --color-border:      #2a2438;
+  --color-border-muted:#1e1830;
+
+  /* --- Colors: Text (warm whites) --- */
+  --color-fg:          #f0e8df;
+  --color-fg-muted:    #9a8e80;
+  --color-fg-subtle:   #6a5f52;
+  --color-text:        #f0e8df;
+  --color-text-muted:  #9a8e80;
+
+  /* --- Colors: Accent (GOLD — primary across all pages) --- */
+  --color-accent:      #d4af37;
+  --color-accent-fg:   #08070c;
+  --color-accent-muted:rgba(212, 175, 55, 0.10);
+  --color-accent-hover:#e8c84a;
+  --color-primary:     #d4af37;
+  --color-accent-soft: rgba(212, 175, 55, 0.06);
+  --color-accent-dim:  #b8922a;
+
+  /* --- Colors: Semantic --- */
+  --color-success:     #34d399;
+  --color-success-muted:rgba(52, 211, 153, 0.1);
+  --color-danger:      #f43f5e;
+  --color-danger-muted:rgba(244, 63, 94, 0.1);
+  --color-danger-hover:#fb7185;
+  --color-warning:     #fbbf24;
+  --color-warning-muted:rgba(251, 191, 36, 0.1);
+  --color-info:        #60a5fa;
+  --color-info-muted:  rgba(96, 165, 250, 0.1);
+
+  /* --- Colors: Platform badges --- */
+  --color-binance:     #f0b90b;
+  --color-bitunix:     #7c7fff;
+  --color-okx:         #fff;
+
+  /* --- Glow helpers (warm gold tones) --- */
+  --glow-cyan:         0 0 16px rgba(212, 175, 55, 0.2), 0 0 48px rgba(212, 175, 55, 0.06);
+  --glow-green:        0 0 16px rgba(52, 211, 153, 0.15), 0 0 48px rgba(52, 211, 153, 0.05);
+  --glow-red:          0 0 16px rgba(244, 63, 94, 0.15), 0 0 48px rgba(244, 63, 94, 0.05);
+  --glow-gold:         0 0 16px rgba(212, 175, 55, 0.25), 0 0 48px rgba(212, 175, 55, 0.08);
+
+  /* --- Glass effect (warm tint) --- */
+  --glass-bg:          rgba(17, 15, 24, 0.7);
+  --glass-border:      rgba(212, 175, 55, 0.06);
+  --glass-blur:        16px;
+
+  /* --- Spacing --- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  /* --- Radius --- */
+  --radius-none: 0;
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   14px;
+  --radius-xl:   20px;
+  --radius-full: 9999px;
+
+  /* --- Shadows (warm depth) --- */
+  --shadow-sm:    0 1px 3px rgba(0,0,0,.5), 0 0 1px rgba(212,175,55,0.03);
+  --shadow-md:    0 4px 16px rgba(0,0,0,.6), 0 0 1px rgba(212,175,55,0.04);
+  --shadow-lg:    0 8px 32px rgba(0,0,0,.7), 0 0 1px rgba(212,175,55,0.05);
+  --shadow-xl:    0 20px 60px rgba(0,0,0,.8), 0 0 1px rgba(212,175,55,0.06);
+  --shadow-inner: inset 0 2px 6px rgba(0,0,0,.5);
+  --shadow-glow:  0 0 24px rgba(212,175,55,0.15), 0 4px 16px rgba(0,0,0,.4);
+
+  /* --- 3D Card perspective --- */
+  --card-3d-hover: perspective(800px) rotateX(2deg) rotateY(-1deg) translateY(-4px);
+  --card-3d-transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* --- Typography --- */
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body:    'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+
+  --text-xs:   0.75rem;
+  --text-sm:   0.875rem;
+  --text-base: 1rem;
+  --text-lg:   1.125rem;
+  --text-xl:   1.25rem;
+  --text-2xl:  1.5rem;
+  --text-3xl:  2rem;
+  --text-4xl:  2.5rem;
+  --text-5xl:  3.5rem;
+
+  --leading-tight: 1.15;
+  --leading-normal:1.5;
+  --leading-loose: 1.75;
+
+  --weight-light:    200;
+  --weight-normal:   400;
+  --weight-medium:   500;
+  --weight-semibold: 600;
+  --weight-bold:     700;
+  --weight-black:    800;
+
+  /* --- Z-index --- */
+  --z-base:    1;
+  --z-dropdown:10;
+  --z-sticky:  20;
+  --z-overlay: 30;
+  --z-modal:   40;
+  --z-popover: 50;
+  --z-toast:   60;
+  --z-tooltip: 70;
+
+  /* --- Transitions --- */
+  --duration-fast:   120ms;
+  --duration-normal: 250ms;
+  --duration-slow:   450ms;
+  --ease-out:        cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out:     cubic-bezier(0.65, 0, 0.35, 1);
+
+  /* --- Breakpoints (for reference) --- */
+  /* sm: 640px, md: 768px, lg: 1024px, xl: 1280px, 2xl: 1536px */
+}

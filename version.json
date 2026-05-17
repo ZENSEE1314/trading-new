@@ -1,0 +1,659 @@
+{
+  "version": "1.4.8",
+  "name": "MCT AI Trader",
+  "released": "2026-04-20",
+  "changelog": [
+    {
+      "version": "1.4.8",
+      "tag": "v1.4.8",
+      "date": "2026-04-20",
+      "label": "Coordinator chat: natural language + useful fallback",
+      "changes": [
+        "Remove ^ anchors from all coordinator chat pattern matchers — phrases like 'show me results', 'list signals', 'what did you find' now work",
+        "Add 'results gen', 'show result', 'list result' patterns → routes to signals chat",
+        "help command now shows a full command list instead of an Ollama nag",
+        "Final fallback (unknown input) now shows status + a helpful hint instead of the Ollama URL message"
+      ]
+    },
+    {
+      "version": "1.4.7",
+      "tag": "v1.4.7",
+      "date": "2026-04-20",
+      "label": "App load speed optimisation",
+      "changes": [
+        "Signal board: replace N parallel per-symbol Binance calls with single bulk ticker request cached 30s server-side — was 50 HTTP calls per page load, now 1",
+        "Add defer to i18n.js script tag — was parser-blocking, now non-blocking",
+        "Add DB indexes idx_trades_user_closed (user_id, closed_at DESC) and idx_trades_api_key_status — speeds up weekly earnings and trade history queries",
+        "gzip compression was already enabled — confirmed active"
+      ]
+    },
+    {
+      "version": "1.4.6",
+      "tag": "v1.4.6",
+      "date": "2026-04-20",
+      "label": "Re-sync closed Bitunix trades + fix AI 400 error",
+      "changes": [
+        "Add POST /api/dashboard/resync-bitunix — re-fetches all closed Bitunix trades from exchange and corrects exit_price, pnl_usdt, gross_pnl, trading_fee, status in DB",
+        "Processes up to 200 most recent closed trades, matches by positionId first then entry price, 200ms delay between requests to avoid rate limits",
+        "Returns JSON with fixed/skipped/failed counts and before/after values for every trade",
+        "Fix AI 400 invalid_request_error — Anthropic rejects empty string content; add fallback to safe defaults before calling API"
+      ]
+    },
+    {
+      "version": "1.4.5",
+      "tag": "v1.4.5",
+      "date": "2026-04-20",
+      "label": "Bitunix sync: store positionId, match by ID, raw data debug endpoint",
+      "changes": [
+        "Add bitunix_position_id column to trades table — stored when position opens",
+        "Sync now matches by positionId first (exact, no ambiguity), falls back to entry price + time",
+        "Try all known Bitunix field name variations: closePrice/avgClosePrice/closedPrice, realizedPNL/realizedPnl/pnl/profit, fee/tradingFee/commission, etc.",
+        "Log full raw position[0] JSON at every sync — field names visible in Railway logs",
+        "Add GET /api/dashboard/debug/bitunix-positions?symbol=SOLUSDT endpoint (admin only) — returns raw Bitunix history to confirm field names without waiting for a trade close"
+      ]
+    },
+    {
+      "version": "1.4.4",
+      "tag": "v1.4.4",
+      "date": "2026-04-20",
+      "label": "Bitunix sync: use exchange data directly, no math",
+      "changes": [
+        "Removed all price-based math for Bitunix P&L — use exchange values as-is",
+        "pnlUsdt = realizedPNL exactly as Bitunix returns it (NET, fees already deducted)",
+        "tradingFee = p.fee exactly as Bitunix returns it",
+        "fundingFee = p.funding exactly as Bitunix returns it",
+        "grossPnl = realizedPNL + fee + funding (simple add-back only, no price × qty)",
+        "Binance path unchanged: realizedPnl is GROSS, net = gross - fees",
+        "Fallback (no exchange data at all): price × qty estimate with 0.12% fee estimate"
+      ]
+    },
+    {
+      "version": "1.4.3",
+      "tag": "v1.4.3",
+      "date": "2026-04-20",
+      "label": "Fix Bitunix sync matching wrong position — entry price required",
+      "changes": [
+        "Root cause: position history match used (entryMatch OR timeMatch) — timeMatch alone matched ANY SOLUSDT LONG that closed after our trade opened",
+        "Example: SOL LONG SL hit at 83.30 (-$1.18), but sync matched a different SOL LONG that closed at 86.10 — showed as gross +$1.15 when actual was -$1.18",
+        "Fix: require entryMatch (entry price within 0.5%) AND closedAfterOpen — timeMatch alone no longer qualifies",
+        "Among multiple entry-price candidates, pick the one whose close time is closest to our trade open time",
+        "Entry tolerance tightened 1% → 0.5% — at $85 SOL, 0.5% = $0.43 (covers real slippage, rejects unrelated positions)",
+        "Result: sync now reads the correct Bitunix position, correct close price, and correct net P&L"
+      ]
+    },
+    {
+      "version": "1.4.2",
+      "tag": "v1.4.2",
+      "date": "2026-04-20",
+      "label": "Fix Bitunix fee display — show true total cost not partial entry fee",
+      "changes": [
+        "Root cause of gross+$1.15/fee-$0.08/net-$0.20 inconsistency: Bitunix position history p.fee is entry-leg fee only, not round-trip",
+        "True total cost (both legs + funding + any slippage) = gross - net = $1.15 - (-$0.20) = $1.35",
+        "Fix: back-calculate implied total cost as grossPnl - pnlUsdt and store as trading_fee when Bitunix realizedPnl is available",
+        "Fee column now shows the actual total deduction — gross - fee = net will always be consistent",
+        "Sanity check: only use implied cost if it is positive and less than 5× the gross (guards against bad exchange data)",
+        "Removed stale totalFee variable that was computed before the Bitunix fee override — moved into Binance branch only where it is needed"
+      ]
+    },
+    {
+      "version": "1.4.1",
+      "tag": "v1.4.1",
+      "date": "2026-04-20",
+      "label": "Fix Bitunix P&L calculation — null handling + gross computation",
+      "changes": [
+        "Bug 1: realizedPnl = parseFloat(p.realizedPNL || 0) — if Bitunix field is absent/null, this set realizedPnl=0, which is not null, so the Bitunix branch ran with zeroed P&L overriding everything",
+        "Fix: p.realizedPNL != null ? parseFloat(p.realizedPNL) : null — properly keeps null when field is missing",
+        "Same fix applied to Method 2 (order history): profit/pnl/realizedPNL all use != null check",
+        "Bug 2: grossPnl reconstructed as realizedPnl + totalFee — Bitunix net P&L can include slippage and accumulated funding not captured in our fee field, making reconstruction inaccurate",
+        "Fix: grossPnl computed from (exitPrice - entryPrice) × qty — matches what the trade history UI shows as the price-based movement",
+        "Net P&L (pnlUsdt) continues to use exchange's authoritative realizedPNL value when available",
+        "Result: gross P&L and net P&L are now consistent and accurate — LOSS when fee > profit is correct behavior"
+      ]
+    },
+    {
+      "version": "1.4.0",
+      "tag": "v1.4.0",
+      "date": "2026-04-20",
+      "label": "Fix duplicate agent execution — orphaned setInterval timers",
+      "changes": [
+        "Root cause: _startCeoLoop() and _startTokenScanLoop() created new setInterval instances without clearing the previous one",
+        "Each re-init (error recovery, reconnect) stacked another timer — after 4 re-inits, ETHAgent/SOLAgent/BNBAgent each ran 4× per tick",
+        "Fix: clearInterval(this._ceoTimer) added at the start of _startCeoLoop() before creating new interval",
+        "Fix: clearInterval(this._tokenScanTimer) added at the start of _startTokenScanLoop() before creating new interval",
+        "Each timer reference is now cleared before being overwritten — no orphaned intervals can accumulate",
+        "Result: each token agent runs exactly once per scan tick regardless of how many times coordinator re-initializes"
+      ]
+    },
+    {
+      "version": "1.3.9",
+      "tag": "v1.3.9",
+      "date": "2026-04-20",
+      "label": "BOS_SHORT/LONG: Zeiierman 1m LH/HL structure for precise entry",
+      "changes": [
+        "BOS_SHORT rewritten: replaces crude 'count bearish candles' with Zeiierman detectCurvedStructure() on 1m (rmaLen=8, pivotLen=3)",
+        "LH LH (Lower Highs) on 1m = structural shift down confirmed by smart money — far more accurate than candle counting",
+        "Scoring uses Zeiierman shortProbability: >60 = +2, >80 = +1, 2+ consecutive LH = +1",
+        "BOS_LONG added (Strategy 8): mirror strategy using HL HL (Higher Lows) on 1m for breakout entries",
+        "BOS_LONG fires when price breaks above 15m resistance with Zeiierman HL structure + volume — enters at the START of the breakout",
+        "Both strategies exempt from: EMA200 hard block (→ -3 penalty), h1Trend counter-trend penalty, BTC correlation penalty, range-position penalty",
+        "BOS_LONG also exempt from 'buying at top of range' penalty (by definition it fires at resistance)",
+        "Entry: top of the move (beginning) not bottom/end — 1m confirmation fires within 1 minute of break"
+      ]
+    },
+    {
+      "version": "1.3.8",
+      "tag": "v1.3.8",
+      "date": "2026-04-20",
+      "label": "BOS_SHORT: entry at breakdown start using 1m candles",
+      "changes": [
+        "Previous BOS_SHORT waited for a full 15m candle to close below support — entry was near the end of the drop, not the beginning",
+        "New flow: support level from 15m closed candles (last 20 excl. forming), entry fires on 1m candles the moment the break starts",
+        "Trigger conditions: price within 0.3% of support AND 3+ of last 6 1m candles bearish AND 1+ of last 4 1m candles closed below support AND strong 1m body (>0.1%) AND 1m volume above average",
+        "Entry price = live price at the top of the breakdown, not the bottom",
+        "SL: just above broken support level (support becomes resistance); TP: 2× ATR below entry",
+        "Bonus scoring: 4+ bearish 1m candles +1, 5+ bearish +1, RSI<50 +1, h1Trend bearish +2, 15m EMA bearish +1"
+      ]
+    },
+    {
+      "version": "1.3.7",
+      "tag": "v1.3.7",
+      "date": "2026-04-20",
+      "label": "Stop shorting at the bottom after a drop",
+      "changes": [
+        "Root cause: 1h EMA lags — trend turns 'bearish' AFTER the drop. Bot was shorting at the bottom when trend finally flipped, then price bounced = loss",
+        "SHORT RSI hard block raised from <30 to <42: RSI 30-42 after a drop = already oversold, don't pile in short",
+        "SHORT price-in-range bottom 20% now a HARD BLOCK (was -3 penalty): if price is at the floor of recent 20-candle range, other strategies cannot open a short",
+        "SHORT price-in-range 20-35% now -4 heavy penalty (near bottom = bad short entry)",
+        "BOS_SHORT exempted from both rules: it fires DURING the breakdown (price is near low by definition) and is designed for that",
+        "Net result: bot only shorts at the top of a range or mid-range moves, never chases drops that already happened"
+      ]
+    },
+    {
+      "version": "1.3.6",
+      "tag": "v1.3.6",
+      "date": "2026-04-20",
+      "label": "Add BOS_SHORT — catch big sudden drops",
+      "changes": [
+        "New strategy: Break of Structure SHORT (BOS_SHORT) — fires when price crashes through recent 15-candle support",
+        "Requires: close below support by 0.15%+, strong bearish candle body (>0.3%), 15m EMA9 < EMA21, volume above average, RSI < 65",
+        "Base score 9 — high confidence breakdown; bonuses for very large candle (+2), consecutive bear candles (+1), RSI < 50 (+1), 1h trend bearish (+2)",
+        "EMA200 hard block softened to -3 penalty for BOS_SHORT only (breakdowns start in bull trends by definition)",
+        "h1Trend bullish penalty (-4) exempted for BOS_SHORT (counter-trend reversal strategy)",
+        "BTC correlation penalty (-5) exempted for BOS_SHORT (BTC dropping with alts = confirmation, not contradiction)",
+        "All other strategies retain their EMA200 hard block and h1Trend penalty",
+        "SL: just above broken support level (support becomes resistance); TP: 2x ATR below entry"
+      ]
+    },
+    {
+      "version": "1.3.5",
+      "tag": "v1.3.5",
+      "date": "2026-04-20",
+      "label": "Trailing SL first lock must clear fees + profit",
+      "changes": [
+        "First trailing SL lock now dynamically adjusted to cover entry fee + exit fee + funding + 5% capital profit minimum",
+        "Fee cost in capital % = (0.08% taker both legs + 0.03% funding) × leverage",
+        "At 20x: fees = 2.2% capital → first lock stays at 10% capital (already covers fees)",
+        "At 50x: fees = 5.5% capital → first lock raised to 10.5% capital",
+        "At 100x: fees = 11% capital → first lock raised to 16% capital (was 10%, was losing money after fees)",
+        "Subsequent trailing steps are unaffected — only the first step (lastStep=0) gets the minimum floor",
+        "Ensures every trailing SL exit is profitable, not just break-even or a loss"
+      ]
+    },
+    {
+      "version": "1.3.4",
+      "tag": "v1.3.4",
+      "date": "2026-04-20",
+      "label": "Fix duplicate trades — signal dedup + early dedup mark",
+      "changes": [
+        "Signal dedup: filter signals array by symbol before the main loop — only the highest-scored signal per symbol per cycle passes to executeForAllUsers",
+        "Multiple strategies (LiqSweep + SLHunt) can fire on same token; without this both called executeForAllUsers → 2 trades per user",
+        "Move executedUserSymbols.add(dedupKey) to immediately after order placement (Binance + Bitunix), before DB INSERT",
+        "Previously if DB INSERT failed after exchange order succeeded, dedupKey was never added → second key or next signal could open a second trade",
+        "Both fixes together prevent same-symbol duplicates within a cycle regardless of how many strategies fire on the same token"
+      ]
+    },
+    {
+      "version": "1.3.3",
+      "tag": "v1.3.3",
+      "date": "2026-04-19",
+      "label": "Fix trailing SL — capital % triggers, 15% step increments",
+      "changes": [
+        "TRAILING_TIERS converted from PRICE % to CAPITAL % (profit as % of margin)",
+        "First trigger: +30% capital gain → lock SL at +10% capital above entry",
+        "Each additional +15% capital gain → add +15% more to the SL lock (not +10%)",
+        "calculateTrailingStep now uses capitalPct = pricePct × leverage for tier comparison",
+        "SL lock % converted back to price % (capitalLock / leverage) for actual order price",
+        "At 20x leverage: trailing SL fires at +1.5% price move (+30% capital) — realistic for crypto",
+        "At 100x leverage: fires at +0.3% price move (+30% capital)",
+        "Beyond last tier (+120% capital): keeps adding +15% lock per +15% capital gain",
+        "checkTrailingStop() now called at end of every cycle (not just when no signals)",
+        "lastStep stored in DB is now in capital % (consistent with tier comparison)"
+      ]
+    },
+    {
+      "version": "1.3.2",
+      "tag": "v1.3.2",
+      "date": "2026-04-19",
+      "label": "Restore v2.0 strategies — 24/7, 4 tokens only",
+      "changes": [
+        "Restored liquidity-sweep-engine.js from v2.0-stable tag (LiqSweep + SLHunt + MomScalp + BRR-Fib strategies)",
+        "Removed all 3 timing restrictions from scanSMC(): isAvoidTime() block gone, getActiveSession() gate gone, checkDailyLimits() block gone",
+        "Bot now trades 24/7 — scans and enters signals at any hour with no session window requirement",
+        "Hard 4-token whitelist inside scanSMC(): BTCUSDT, ETHUSDT, SOLUSDT, BNBUSDT only — all other coins filtered before analysis",
+        "Coordinator updated: now calls scanSMC() from liquidity-sweep-engine instead of trade-engine.scanAll()",
+        "trade-engine.js (TEN_CANDLE_EXTREME) remains in repo but no longer called"
+      ]
+    },
+    {
+      "version": "1.3.1",
+      "tag": "v1.3.1",
+      "date": "2026-04-19",
+      "label": "Run TEN_CANDLE_EXTREME only — disable all other strategies",
+      "changes": [
+        "Disabled strategies 1-6 (HTF_SWING, VWAP_REJECTION, CONSOL_REJECT, LIQ_SWEEP, MOMENTUM, SWING_REVERSAL)",
+        "Only TEN_CANDLE_EXTREME is active — one clean strategy with no conflicting signals",
+        "Buy at the floor of the last 10 candles (bottom 15% + 7+ closes above)",
+        "Sell at the ceiling of the last 10 candles (top 15% + 7+ closes below)",
+        "All directional rules (master law, momentum block, RSI, h1Trend, opBias) still apply as safety filters"
+      ]
+    },
+    {
+      "version": "1.3.0",
+      "tag": "v1.3.0",
+      "date": "2026-04-19",
+      "label": "Strategy 7: 10-Candle Extreme — buy at the floor, sell at the ceiling",
+      "changes": [
+        "New Strategy 7: TEN_CANDLE_EXTREME — checks last 10 completed 15m candles",
+        "LONG trigger: current price in bottom 15% of 10-candle range AND 7+ of 10 candles close ABOVE current price → buying at the very floor",
+        "SHORT trigger: current price in top 15% of 10-candle range AND 7+ of 10 candles close BELOW current price → selling at the very ceiling",
+        "1m confirmation required: green candle or hammer for LONG, red candle or bear-pin for SHORT",
+        "Tighter position = higher bonus: bottom 5% = +3, bottom 10% = +2, bottom 15% = +1 (same for SHORT top)",
+        "Engulf pattern on 1m adds +2 bonus (strong reversal confirmation)",
+        "SL: 0.5% beyond the 10-candle range extreme",
+        "Base score: 9 (same as SWING_REVERSAL — precise level entry)",
+        "Counter-trend exception: may enter against h1Trend at RSI extremes (RSI>70 for SHORT, RSI<35 for LONG)",
+        "Exempt from the global range-position filter (has its own stricter 15% internal check)",
+        "Both SWING_REVERSAL and TEN_CANDLE_EXTREME now in REVERSAL_STRATEGIES set for the counter-trend exception"
+      ]
+    },
+    {
+      "version": "1.2.9",
+      "tag": "v1.2.9",
+      "date": "2026-04-19",
+      "label": "COMPREHENSIVE FIX: Master directional law — correct direction every trade",
+      "changes": [
+        "ROOT CAUSE AUDIT: 5 independent bugs all allowed wrong-direction trades",
+        "BUG 1 — Hard block required BOTH h1Trend AND EMA200 to agree. If h1=bullish but EMA200=bearish, SHORTs still passed. FIX: hard block now triggers on h1Trend ALONE",
+        "BUG 2 — SWING_REVERSAL SHORT had zero h1Trend check. Would fire SHORT at any swing high even in uptrend. FIX: SWING_REVERSAL counter-trend only allowed at RSI extremes (SHORT in h1 bull only if RSI>70, LONG in h1 bear only if RSI<35)",
+        "BUG 3 — HTF_SWING SHORT had no 1h check. 3m LH+LL fires during ANY pullback, even healthy uptrend retracements. FIX: master directional block at scoring level now blocks HTF_SWING SHORT in h1 uptrend (score=-99)",
+        "BUG 4 — Momentum block required ALL 3 candles green/red. One doji cancelled the whole block (e.g. green+doji+green bounce = momentumDir stays neutral). FIX: upgraded to 2-of-3 rule — 2+ candles same direction AND >0.8% move = momentum confirmed",
+        "BUG 5 — CONSOL_REJECT SHORT had no 1h check. Only looked at 15m EMAs. FIX: master directional block catches this — h1=bullish blocks all CONSOL_REJECT SHORTs",
+        "MASTER DIRECTIONAL LAW: h1Trend=bullish → ONLY LONG | h1Trend=bearish → ONLY SHORT | neutral → both with strong confirmation needed",
+        "Counter-trend exception: SWING_REVERSAL at RSI extremes may trade against h1 (catches blow-off tops and capitulation lows) but with -3 penalty",
+        "opBias penalty doubled: -1 → -2 for trading against daily VWAP bias",
+        "EMA200 alignment now also gives +1 bonus when trade aligns (was penalty-only before)"
+      ]
+    },
+    {
+      "version": "1.2.8",
+      "tag": "v1.2.8",
+      "date": "2026-04-19",
+      "label": "Entry precision — buy at HL bottom, not mid-range",
+      "changes": [
+        "Root cause of mid-range entries: CONSOL_REJECT, VWAP_REJECTION, MOMENTUM had no check for WHERE in the range price was — they'd fire anywhere",
+        "Global Filter 6: Range position ratio — measures where current price sits in the last 20 candles (0=low, 1=high)",
+        "LONG mid-range (60%+ into 20-candle range): -4 penalty — buying 60% into a move is wrong zone",
+        "LONG at bottom (≤30% of range): +2 bonus — buying near the low is correct",
+        "SHORT mid-range (≤40% from bottom): -4 penalty — shorting near the bottom is wrong zone",
+        "SHORT at top (≥70% of range): +2 bonus — shorting near the high is correct",
+        "Structure strategies (SWING_REVERSAL, HTF_SWING, LIQ_SWEEP) exempt from range filter — they already check level proximity internally",
+        "HTF_SWING base score raised 6→8 (structure-based, enters at 1m HL/LH = correct levels)",
+        "Score math: LONG mid-range CONSOL_REJECT = 6+3+1+2+2-4 = 10. Still passes if trend is aligned. But counter-trend mid-range = 6+3-3-1-1-4 = 0. Blocked."
+      ]
+    },
+    {
+      "version": "1.2.7",
+      "tag": "v1.2.7",
+      "date": "2026-04-19",
+      "label": "Fix ETH SHORT in uptrend + raise MIN_SCORE + per-user trade dedup",
+      "changes": [
+        "Root cause of ETH SHORT in bull trend: MIN_SCORE was 4, CONSOL_REJECT SHORT in uptrend scores exactly 4 (6+3-3-1-1) — scraped through",
+        "Raised MIN_SCORE from 4 to 8 in scanAll() — counter-trend signals now rejected, aligned signals still pass at 12-19",
+        "Added hard directional block: if h1Trend bullish AND EMA200 bullish → score set to -99 for ANY SHORT signal (no exceptions)",
+        "Same block for downtrend: h1Trend bearish AND EMA200 bearish → no LONGs",
+        "SKIP log now shown when signal fails MIN_SCORE — visible reason why signal was rejected",
+        "Fixed 3x duplicate trades: dedup now checks by user_id not api_key_id — users with 3 API keys no longer get 3 identical trades",
+        "Dedup key changed from api_key:id:symbol to user:userId:symbol — all keys of same user share the in-cycle dedup set"
+      ]
+    },
+    {
+      "version": "1.2.6",
+      "tag": "v1.2.6",
+      "date": "2026-04-19",
+      "label": "Momentum block — stop shorting into bull breakouts",
+      "changes": [
+        "Root cause of SOL short into bull breakout: CONSOL_REJECT saw EMA9<EMA21 (all-day downtrend) + price at coil top → fired SHORT, but price had already broken above both EMAs = it was a reversal, not a rejection",
+        "Global Filter 5: momentum block — if last 3 completed 15m candles are ALL green/red AND total move >0.8%, counter-trend signals get -8 score penalty (effectively blocked)",
+        "CONSOL_REJECT SHORT now requires price to still be BELOW both EMA9 and EMA21 — if price broke above both EMAs, it's a bullish reversal not a coil top",
+        "CONSOL_REJECT LONG now requires price to still be ABOVE both EMAs",
+        "CONSOL_REJECT: added EMA separation check (emaSep > 0.1%) — prevents firing when EMAs have converged and trend is unclear",
+        "Momentum riding bonus: signals aligned WITH strong momentum get +3 score bonus"
+      ]
+    },
+    {
+      "version": "1.2.1",
+      "tag": "v1.2.1",
+      "date": "2026-04-19",
+      "label": "CRITICAL FIX: Remove auto-pause that blocked all users silently",
+      "changes": [
+        "Root cause of other users not trading: auto-pause fired every cycle for any user registered >7 days ago with positive PnL",
+        "Removed payment-overdue auto-pause from executeForAllUsers() — payment gating belongs in admin panel only",
+        "Added one-time unblock: clears any paused_by_admin=true flags set by the old auto-pause logic on first deploy",
+        "Diagnostic log now shows 'platform' (not 'exchange') so you can see bitunix/binance correctly"
+      ]
+    },
+    {
+      "version": "1.2.0",
+      "tag": "v1.2.0",
+      "date": "2026-04-19",
+      "label": "4-coin restriction + unified trade-engine",
+      "changes": [
+        "trade-engine.js: hard-coded ALLOWED_SYMBOLS = BTC/ETH/SOL/BNB — no other coins can be scanned",
+        "ChartAgent now uses trade-engine.scanAll() — old scanSMC/liquidity-sweep-engine no longer called",
+        "Fixes SWARMS/XRP/1000PEPE trades: old ChartAgent scanned top 50 coins from Binance ticker"
+      ]
+    },
+    {
+      "version": "1.1.9",
+      "tag": "v1.1.9",
+      "date": "2026-04-19",
+      "label": "Fix signal blockers: backtest gate, risk score gate, MIN_SCORE",
+      "changes": [
+        "smc-engine signals now carry strategyWinRate:60-70 — bypasses backtest-gate 30-day sim",
+        "risk-agent: score gate skipped for signals with strategyWinRate>=60",
+        "risk-agent: swarm contradiction skipped for trusted-WR signals",
+        "ai-learner: MIN_SCORE default 8→4, clamp floor 6→4",
+        "These were the final gates blocking all SMC and HTF signals from reaching execution"
+      ]
+    },
+    {
+      "version": "1.1.8",
+      "tag": "v1.1.8",
+      "date": "2026-04-19",
+      "label": "CRITICAL FIX: Wire sweep engine into coordinator + loosen smc-engine gates",
+      "changes": [
+        "Root cause of zero trades: coordinator used smc-engine.js, NOT liquidity-sweep-engine.js — scanSMC in cycle.js was NEVER called by the pipeline",
+        "FIX: Wire liquidity-sweep-engine.scanSMC() directly into coordinator execute() — all 9 strategies now active",
+        "FIX: smc-engine.js EMA200(1h) hard block removed — changed to -3 score penalty only",
+        "FIX: smc-engine.js MAX_CHASE_PCT 0.6% → 1.5% — allows entering fast-moving markets",
+        "FIX: smc-engine.js swing age limit 6 → 20 candles — was rejecting valid setups that formed >6 min ago",
+        "FIX: smc-engine.js SL range widened 0.1-2% → 0.05-5% — was blocking valid structures",
+        "FIX: smc-engine.js scanSMC() session gates removed (24/7 trading)",
+        "FIX: smc-engine.js AI hour check is now informational only — no longer blocks signals",
+        "Score degradation: chase 0.6-1.5% = -2 penalty, old swing (>6 candles) = -1 penalty, EMA200 against = -3 penalty"
+      ]
+    },
+    {
+      "version": "1.1.7",
+      "tag": "v1.1.7",
+      "date": "2026-04-19",
+      "label": "CRITICAL FIX: Wire SMC engine into trade cycle + gate tuning",
+      "changes": [
+        "BUG: scanSMC() was never imported or called in cycle.js — all 9 SMC strategies were dead code",
+        "FIX: Import scanSMC from liquidity-sweep-engine.js in cycle.js",
+        "FIX: Call scanSMC() each cycle alongside aiSignals, spikeHL, T-junction",
+        "FIX: SMC signals get strategyWinRate=60-70 to bypass backtest gate",
+        "Backtest gate: MIN_WIN_RATE stays 50% for real backtested strategies",
+        "Backtest gate: bypass threshold raised 55→60 (only trusted WR>=60 signals bypass)",
+        "Backtest gate: SMC strategies removed from KNOWN_STRATEGIES — use 60+ WR bypass path instead of unreliable backtest sim",
+        "SMC signals logged: 'SMC Engine: N signal(s) — SYMBOL DIR [SETUP] score=X'",
+        "Root cause of zero trades since launch: scanSMC was NEVER in the execution pipeline"
+      ]
+    },
+    {
+      "version": "1.1.6",
+      "tag": "v1.1.6",
+      "date": "2026-04-19",
+      "label": "Fix range detection + add Consolidation Rejection strategy",
+      "changes": [
+        "Fix RANGE_BOUNCE: EMA spread threshold loosened 1.5% → 2.5% (was blocking all post-trend consolidations)",
+        "Fix RANGE_BOUNCE: lookback reduced 40 → 25 candles (focuses on current range, not old trend candles)",
+        "Fix RANGE_BOUNCE: wall proximity tolerance widened 0.3% → 0.5% (catches more valid entries)",
+        "Add Strategy 8: CONSOL_REJECTION — detects price coiling after a strong move then rejecting at extreme",
+        "SHORT: EMA9<EMA21 (downtrend) + price at top 65%+ of consolidation + bearish candle → short the coil top",
+        "LONG: EMA9>EMA21 (uptrend) + price at bottom 35% of consolidation + bullish candle → long the coil bottom",
+        "Consolidation confirmed when recent-10 ATR < 65% of prior-15 ATR (price coiling = energy building)",
+        "VWAP_REJECTION renamed Strategy 9 (was 8) to make room",
+        "This fix catches the ETH/BNB consolidation-top short that was previously missed"
+      ]
+    },
+    {
+      "version": "1.1.5",
+      "tag": "v1.1.5",
+      "date": "2026-04-19",
+      "label": "24/7 trading + VWAP Rejection strategy",
+      "changes": [
+        "Remove ALL time restrictions — bot scans and trades 24/7 based purely on signal score",
+        "Removed: SESSION_WINDOWS, AVOID_HOURS_UTC, getActiveSession(), isAvoidTime() logic",
+        "Removed: session score bonus (+2 in-session) and penalty (-1 outside session)",
+        "Removed: outsideSession parameter from analyzeCoin()",
+        "scanSMC log now shows '24/7' instead of session name",
+        "Add Strategy 8: VWAP Rejection — detects price poking through VWAP then closing back",
+        "VWAP SHORT: 15m candle high > VWAP, close < VWAP, rejection wick ≥ 50% of body",
+        "VWAP LONG: 15m candle low < VWAP, close > VWAP, rejection wick ≥ 50% of body",
+        "SL: beyond wick tip + 0.5×ATR buffer. TP: 2×ATR dynamic target (RR ~1:2)",
+        "VWAP hoisted to function scope so both bias check and rejection strategy share it"
+      ]
+    },
+    {
+      "version": "1.1.4",
+      "tag": "v1.1.4",
+      "date": "2026-04-19",
+      "label": "Fix SL back to margin-based (30% of trade), keep price-based trailing",
+      "changes": [
+        "SL: always 30% from entry PRICE regardless of leverage (was SL_PCT/leverage = 0.3% at 100x, now capped at liquidation guard 80% of liq distance)",
+        "At 20x (BNB/SOL): SL capped at 4% from entry (80% of 5% liq distance) — was 1.5%",
+        "At 100x (BTC/ETH): SL capped at 0.8% from entry (80% of 1% liq distance) — was 0.3%",
+        "Trailing SL: rewritten to price-based tiers (no leverage conversion)",
+        "Trailing rule: first fires at +30% price gain → lock +10% above entry",
+        "Every +15% more price gain → add +10% to the locked SL",
+        "Gap between current price and trailing SL: always ~20% — much more breathing room",
+        "Candle-low trail (15m) unchanged — still provides early locking during normal moves"
+      ]
+    },
+    {
+      "version": "1.1.2",
+      "tag": "v1.1.2",
+      "date": "2026-04-19",
+      "label": "Fix BNB/SOL defaulting to 100x leverage — root cause of tight SL",
+      "changes": [
+        "Bug: getTokenLeverage() fallback (priority 4) put BNB and SOL in HIGH_PRICE_TOKENS with BTC/ETH → all defaulted to 100x when no DB setting existed",
+        "At 100x: BNB SL = 0.30/100 = 0.3% = $1.80 at $600 BNB — clipped by normal candle wicks",
+        "Fix: explicit per-symbol defaults — BTC/ETH → 100x, BNB/SOL → 20x, matches admin UI token card labels",
+        "At 20x: BNB SL = 0.30/20 = 1.5% = $9 — survives normal volatility",
+        "Price-based fallback for other tokens updated: ≥$1000 → 100x, ≥$100 → 50x, else → 20x"
+      ]
+    },
+    {
+      "version": "1.1.1",
+      "tag": "v1.1.1",
+      "date": "2026-04-19",
+      "label": "Fix SL + trailing SL too near at high leverage",
+      "changes": [
+        "Add MIN_SL_PRICE_PCT = 0.005 (0.5%) — hard floor on SL distance from entry regardless of leverage",
+        "At 100x: SL was 0.3% (too tight) → now guaranteed minimum 0.5% ($450 on BTC $90k)",
+        "Applied to both owner account entry and all user account entries",
+        "Trailing tier gap widened: 4% → 8% margin between trigger and lock-in level",
+        "Trailing SL now stays further behind current price, reducing premature stop-outs on retracements",
+        "Scanner ATR SL multiplier: 1.2× → 1.5× — signal-level SL gets more breathing room vs candle wicks"
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "tag": "v1.1.0",
+      "date": "2026-04-19",
+      "label": "Multi-language support — EN / 中文 / BM",
+      "changes": [
+        "Add i18n system: client-side translation dictionary for English, Chinese Simplified, Bahasa Malaysia",
+        "Language switcher dropdown in app header (flag + label, persists across sessions via localStorage)",
+        "data-i18n attributes on all static UI elements: nav tabs, table headers, period filters, empty states, buttons, labels",
+        "Dynamic UI (pause bot status, Kronos bullish/bearish/neutral counts) uses i18n.t() at render time",
+        "togglePause state detection rewritten to use data-i18n attribute (not textContent) — language-safe",
+        "CSS: .i18n-switcher, .i18n-dropdown styles added to style.css"
+      ]
+    },
+    {
+      "version": "1.0.4",
+      "tag": "v1.0.4",
+      "date": "2026-04-19",
+      "label": "Revert v1.0.3 — cash wallet stays 0 until top-up or referral commission",
+      "changes": [
+        "Reverted v1.0.3: recordProfitSplit no longer touches cash_wallet",
+        "Cash wallet correct model: only grows from manual top-ups + referral commission when referral pays weekly fee",
+        "Trade profits (60%/40%) logged in wallet_transactions for PnL display only — not credited to cash wallet",
+        "Cash wallet breakdown display: removed profit_share row, kept top-ups + referral commission + fees paid",
+        "Updated breakdown note to clearly explain the cash wallet model"
+      ]
+    },
+    {
+      "version": "1.0.3",
+      "tag": "v1.0.3",
+      "date": "2026-04-19",
+      "label": "Auto-credit profit splits to cash wallet on every trade close",
+      "changes": [
+        "recordProfitSplit: user's 60% share now credited to users.cash_wallet immediately when trade closes",
+        "recordProfitSplit: platform's 40% fee now credited to all admin users' cash_wallet automatically",
+        "Admins split equally if multiple admin accounts exist",
+        "wallet_transactions still recorded for full audit trail",
+        "Cash wallet breakdown note updated: 60% shown as real credited amount, not exchange-only reference",
+        "Previously: profit split was logged only, no cash_wallet was ever updated from trades"
+      ]
+    },
+    {
+      "version": "1.0.2",
+      "tag": "v1.0.2",
+      "date": "2026-04-19",
+      "label": "Fix admin user list showing wallet_balance instead of cash_wallet",
+      "changes": [
+        "Bug: admin Users table showed wallet_balance column (always $0) instead of cash_wallet + commission_earned",
+        "Fix: renderAdminUsers now computes bal = cash_wallet + commission_earned — matches dashboard display",
+        "Fix: Edit Wallet button pre-fills correct balance (was always pre-filling $0)"
+      ]
+    },
+    {
+      "version": "1.0.1",
+      "tag": "v1.0.1",
+      "date": "2026-04-19",
+      "label": "Fix Kronos 4-token filter + cash wallet breakdown display",
+      "changes": [
+        "Kronos route: filter DB results to only BTCUSDT/ETHUSDT/SOLUSDT/BNBUSDT — old 10-token rows excluded",
+        "Kronos header: updated label from '(10 tokens)' to '(N tokens — BTC/ETH/SOL/BNB)'",
+        "Cash wallet breakdown: profit_shares were computed server-side but never rendered on screen — now shown",
+        "Cash wallet breakdown: replaced flat text with itemised table (top-ups / referral commission / 60% profits / fees paid)",
+        "Cash wallet: added note clarifying 60% trade profits stay on exchange, shown for reference only"
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "tag": "v1.0.0",
+      "date": "2026-04-18",
+      "commit": "9b7592d",
+      "label": "Filter Fixes + 24/7 Optimizer + Versioning",
+      "changes": [
+        "Fix: all strategies run 24/7 — session gate changed from hard block to +2 score bonus in-session / -1 out-of-session",
+        "Fix: EMA200 bias changed from hard block (score=-99) to -3 penalty / +2 bonus",
+        "Fix: removed AVOID_MINUTES blackout (00/15/30/45 min) — was killing too many valid entries",
+        "Fix: session open 30-min blackout removed",
+        "Fix: MIN_SCORE fallback lowered 8→6",
+        "Fix: MOMENTUM_SCALP trendStrength 7→5, pinBarWickRatio 2.5→2.0",
+        "Fix: RSI hard block raised to RSI>78 long / RSI<22 short",
+        "RANGE_BOUNCE: detect walls from swing clusters (findSwingWalls), not absolute max/min",
+        "RANGE_BOUNCE: wall-only entries — 0.3% tolerance, mid-range (25-75%) blocked",
+        "Per-symbol daily trade limits — all 4 coins trade independently",
+        "Remove daily trade count cap — trade on valid signals only",
+        "Kronos + AI scanner limited to BTCUSDT/ETHUSDT/SOLUSDT/BNBUSDT only",
+        "Chart indicator font set to 15pt",
+        "RANGE_BOUNCE added to backtest gate (KNOWN_STRATEGIES)",
+        "Token pool seeding: only on first boot, not on every restart",
+        "Exhaustive 24/7 optimizer (genetic search) added — background agent",
+        "Optimizer results API: GET /api/dashboard/optimizer/results",
+        "Version system: version.json + bump-version.js + GET /api/version"
+      ]
+    },
+    {
+      "version": "0.9.0",
+      "tag": "v0.9.0",
+      "date": "2026-04-17",
+      "commit": "bea854d",
+      "label": "Trailing SL Watchdog + Structural Entry Guards + Range Filter",
+      "changes": [
+        "Candle-low trailing SL — SL follows previous 15m candle low (LONG) / high (SHORT)",
+        "Trail SL watchdog runs as separate process every 15s — persistent, never misses a move",
+        "Trailing SL profit tier guarantee — locks in profit before candle trail kicks in",
+        "Fee floor on first SL — minimum 1% gain before SL trails to protect from fee loss",
+        "SHORT bias at range top — detects resistance and prefers short signals near highs",
+        "Block LONG/SHORT at structural extremes — buy HL/LL only, sell HH/LH only",
+        "Add 1m spike hard block — stops entering during fast pump/dump candles",
+        "Fix Bitunix trailing SL: positionId lookup was silently returning false",
+        "Fix SMC_HL_STRUCTURE: buy at HL retest bottom, not breakout top",
+        "Fix trailing SL precision + extend re-entry cooldown to 60min",
+        "Fix: scanAI falls back to classic SMC when no learned strategies exist",
+        "Add range filter to ai-signal-scanner — the real signal source for Kronos",
+        "Switch ChartAgent to liquidity-sweep-engine — disable ai-signal-scanner",
+        "Add auto-deploy script — pulls latest code and restarts on new push",
+        "Add VSA Multi Volume Histogram to MCT chart",
+        "Fix 3 blockers causing zero trades to execute",
+        "Disable Triple MA strategy — 24.1% WR in backtest (net -24.7%)"
+      ]
+    },
+    {
+      "version": "2.0-stable",
+      "tag": "v2.0-stable",
+      "date": "2026-04-17",
+      "commit": "bf7d6db",
+      "label": "Stable Checkpoint — Bitunix SL Fix (early Apr 17)",
+      "changes": [
+        "Fix Bitunix trailing SL: positionId lookup was silently returning false",
+        "This tag was set as a stable rollback point before further Apr 17 changes"
+      ]
+    },
+    {
+      "version": "1.0-before-fixes",
+      "tag": "v1.0-before-fixes",
+      "date": "2026-04-17",
+      "commit": "2d39570",
+      "label": "Pre-fix Checkpoint — scanAI fallback (mid Apr 17)",
+      "changes": [
+        "Fix: scanAI falls back to classic SMC when no learned strategies exist",
+        "This tag was set as a checkpoint before the trailing SL watchdog changes"
+      ]
+    },
+    {
+      "version": "0.8.0",
+      "tag": "v0.8.0",
+      "date": "2026-04-16",
+      "commit": "e7b7cd5",
+      "label": "MCT PDF Strategy + SMC HL/LH Structure + Zeiierman",
+      "changes": [
+        "Implement MCT PDF strategy rules for SMC HL/LH trades",
+        "SMC HL/LH structure strategy with Zeiierman curved band detection",
+        "Chart 1m candle display fix",
+        "Add funding_fee as separate tracked field across all trade paths",
+        "Bitunix referral link per user, platform guide download",
+        "Live exchange positions visible in emergency close panel",
+        "Remove ERROR trades from trade history for all accounts",
+        "Fix Binance API method name: getAccountTradeList → getAccountTrades",
+        "Fix double fee deduction in cycle.js Bitunix trade close sync",
+        "Fix Bitunix trade history sync: wrong side check + double fee",
+        "Fix backtest gate blocking AI signals that already have their own WR",
+        "Relax SMC entry timing: swing age 3→6, chase distance 0.4%→0.6%",
+        "Fix zero-trade issue: backtest gate blocked everything at 80% WR",
+        "Fix 11 critical/high/medium bugs found in code review",
+        "Wire Hermes memory into all agents — persistent cross-agent intelligence",
+        "Fix email tab visibility on dark theme",
+        "Disable HTML caching so updates deploy instantly",
+        "Fix JSON parse crash: missing /api prefix on brain-status fetch"
+      ]
+    }
+  ]
+}
