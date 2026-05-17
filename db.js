@@ -1,9 +1,13 @@
 const { Pool } = require('pg');
 
 const dbUrl = process.env.DATABASE_URL || '';
+const usesRailwayPrivateDb = dbUrl.includes('.railway.internal');
+const connectionString = dbUrl && !usesRailwayPrivateDb && !dbUrl.includes('sslmode=')
+  ? `${dbUrl}${dbUrl.includes('?') ? '&' : '?'}sslmode=require`
+  : dbUrl;
 const pool = new Pool({
-  connectionString: dbUrl.includes('sslmode=') ? dbUrl : `${dbUrl}${dbUrl.includes('?') ? '&' : '?'}sslmode=require`,
-  ssl: { rejectUnauthorized: false },
+  connectionString,
+  ssl: usesRailwayPrivateDb ? false : { rejectUnauthorized: false },
   max: 20,                    // raised from 10 — exhaustive optimizer + trading cycle + web requests all compete
   connectionTimeoutMillis: 30000,
   idleTimeoutMillis: 60000,
